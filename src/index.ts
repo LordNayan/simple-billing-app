@@ -1,18 +1,81 @@
-/**
- * Welcome to Cloudflare Workers! This is your first worker.
- *
- * - Run `npm run dev` in your terminal to start a development server
- * - Open a browser tab at http://localhost:8787/ to see your worker in action
- * - Run `npm run deploy` to publish your worker
- *
- * Bind resources to your worker in `wrangler.toml`. After adding bindings, a type definition for the
- * `Env` object can be regenerated with `npm run cf-typegen`.
- *
- * Learn more at https://developers.cloudflare.com/workers/
- */
+import { SubscriptionPlanService } from "./services/subscriptionPlanService";
+import { SubscriptionPlan } from "./models/subscriptionPlan";
+import { createErrorResponse } from "./utils/errors";
+import { createSuccessResponse } from "./utils/responses";
 
-export default {
-  async fetch(request, env, ctx): Promise<Response> {
-    return new Response("Hello World!");
-  },
-} satisfies ExportedHandler<Env>;
+const subscriptionPlanService = new SubscriptionPlanService();
+
+addEventListener("fetch", (event) => {
+  event.respondWith(handleRequest(event.request));
+});
+
+async function handleRequest(request: Request): Promise<Response> {
+  const url = new URL(request.url);
+  console.log(url.pathname);
+  if (url.pathname === "/") {
+    switch (request.method) {
+      case "GET":
+        return new Response("Welcome to Nayan's simple billing app", {
+          status: 200,
+        });
+      default:
+        return createErrorResponse("Method not allowed", 405);
+    }
+  }
+
+  if (url.pathname.startsWith("/plans")) {
+    switch (request.method) {
+      case "POST":
+        return handleCreatePlan(request);
+      case "GET":
+        return handleGetPlan(request);
+      case "PUT":
+        return handleUpdatePlan(request);
+      case "DELETE":
+        return handleDeletePlan(request);
+      default:
+        return createErrorResponse("Method not allowed", 405);
+    }
+  }
+
+  return new Response("Not found", { status: 404 });
+}
+
+async function handleCreatePlan(request: Request): Promise<Response> {
+  const plan: Omit<SubscriptionPlan, "id"> = await request.json();
+  const newPlan = await subscriptionPlanService.createPlan(plan);
+
+  if (newPlan) {
+    return createSuccessResponse(newPlan, 201);
+  } else {
+    return createErrorResponse("Plan with the same name already exists", 409);
+  }
+}
+
+async function handleGetPlan(request: Request): Promise<Response> {
+  const url = new URL(request.url);
+  const id = url.pathname.split("/").pop();
+  const plan = await subscriptionPlanService.getPlan(id!);
+  if (plan) {
+    return createSuccessResponse(plan, 200);
+  }
+  return createErrorResponse("Plan not found", 400);
+}
+
+async function handleUpdatePlan(request: Request): Promise<Response> {
+  const url = new URL(request.url);
+  const id = url.pathname.split("/").pop();
+  if (id) {
+    const plan: Omit<SubscriptionPlan, "id"> = await request.json();
+    await subscriptionPlanService.updatePlan(id, plan);
+    return createSuccessResponse(plan, 200);
+  }
+  return createErrorResponse("Bad Request", 400);
+}
+
+async function handleDeletePlan(request: Request): Promise<Response> {
+  const url = new URL(request.url);
+  const id = url.pathname.split("/").pop();
+  await subscriptionPlanService.deletePlan(id!);
+  return createSuccessResponse(null, 204);
+}
