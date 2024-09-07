@@ -2,8 +2,12 @@ import { SubscriptionPlanService } from "./services/subscriptionPlanService";
 import { SubscriptionPlan } from "./models/subscriptionPlan";
 import { createErrorResponse } from "./utils/errors";
 import { createSuccessResponse } from "./utils/responses";
+import { CustomerService } from "./services/customerService";
+import { Customer } from "./models/customer";
+import { emptyKVStore } from "./utils/kvStore";
 
 const subscriptionPlanService = new SubscriptionPlanService();
+const customerService = new CustomerService();
 
 addEventListener("fetch", (event) => {
   event.respondWith(handleRequest(event.request));
@@ -11,7 +15,6 @@ addEventListener("fetch", (event) => {
 
 async function handleRequest(request: Request): Promise<Response> {
   const url = new URL(request.url);
-  console.log(url.pathname);
   if (url.pathname === "/") {
     switch (request.method) {
       case "GET":
@@ -38,7 +41,30 @@ async function handleRequest(request: Request): Promise<Response> {
     }
   }
 
+  if (url.pathname.startsWith("/customers")) {
+    switch (request.method) {
+      case "POST":
+        return handleCreateCustomer(request);
+      case "GET":
+        return handleGetCustomer(request);
+      case "PUT":
+        return handleAssignSubscriptionPlan(request);
+      default:
+        return createErrorResponse("Method not allowed", 405);
+    }
+  }
+
+  // Additional admin endpoint to empty the KV store
+  if (url.pathname === "/admin/empty-kv" && request.method === "POST") {
+    return handleEmptyKV();
+  }
+
   return new Response("Not found", { status: 404 });
+}
+
+async function handleEmptyKV(): Promise<Response> {
+  await emptyKVStore(BILLING_KV);
+  return createSuccessResponse("KV store emptied successfully", 200);
 }
 
 async function handleCreatePlan(request: Request): Promise<Response> {
@@ -78,4 +104,44 @@ async function handleDeletePlan(request: Request): Promise<Response> {
   const id = url.pathname.split("/").pop();
   await subscriptionPlanService.deletePlan(id!);
   return createSuccessResponse(null, 204);
+}
+
+async function handleCreateCustomer(request: Request): Promise<Response> {
+  const customerData: Omit<Customer, "id" | "subscriptionStatus"> =
+    await request.json();
+  const newCustomer = await customerService.createCustomer(customerData);
+  if (!newCustomer) {
+    return createErrorResponse("Customer already exists", 409);
+  }
+  return createSuccessResponse(newCustomer, 201);
+}
+
+async function handleGetCustomer(request: Request): Promise<Response> {
+  const url = new URL(request.url);
+  const id = url.pathname.split("/").pop();
+  const customer = await customerService.getCustomer(id!);
+  if (customer) {
+    return createSuccessResponse(customer, 200);
+  }
+  return createErrorResponse("Plan not found", 400);
+}
+
+async function handleAssignSubscriptionPlan(
+  request: Request
+): Promise<Response> {
+  const {
+    customerId,
+    subscriptionPlanId,
+  }: { customerId: string; subscriptionPlanId: string } = await request.json();
+  const assigned = await customerService.assignSubscriptionPlan(
+    customerId,
+    subscriptionPlanId
+  );
+  if ("error" in assigned) {
+    return createErrorResponse(assigned.error, 400);
+  }
+  return createSuccessResponse(
+    `Subscription plan ${assigned.subscriptionPlanName} assigned to customer ${assigned.customerName}`,
+    200
+  );
 }

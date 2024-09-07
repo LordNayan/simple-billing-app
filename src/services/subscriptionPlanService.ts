@@ -8,27 +8,16 @@ export class SubscriptionPlanService {
     this.kvNamespace = BILLING_KV;
   }
 
-  async doesPlanNameExist(name: string): Promise<boolean> {
-    const { keys } = await this.kvNamespace.list();
-    for (const key of keys) {
-      const planData = await this.kvNamespace.get(key.name);
-      const plan = planData ? JSON.parse(planData) : null;
-      if (plan?.name === name) {
-        return true;
-      }
-    }
-    return false;
-  }
-
   async createPlan(
     plan: Omit<SubscriptionPlan, "id">
   ): Promise<SubscriptionPlan | null> {
-    if (await this.doesPlanNameExist(plan.name)) {
+    if (await this.kvNamespace.get(`plan_name:${plan.name}`)) {
       return null; // Plan with the same name already exists
     }
     const id = uuidv4();
     const newPlan = { ...plan, id };
     await this.kvNamespace.put(`plan:${id}`, JSON.stringify(newPlan));
+    await this.kvNamespace.put(`plan_name:${plan.name}`, "1");
     return newPlan;
   }
 
@@ -45,10 +34,6 @@ export class SubscriptionPlanService {
   }
 
   async deletePlan(id: string): Promise<void> {
-    try {
-      await this.kvNamespace.delete(`plan:${id}`);
-    } catch (e) {
-      console.log(e);
-    }
+    await this.kvNamespace.delete(`plan:${id}`);
   }
 }
