@@ -140,8 +140,5 @@ async function handleAssignSubscriptionPlan(
   if ("error" in assigned) {
     return createErrorResponse(assigned.error, 400);
   }
-  return createSuccessResponse(
-    `Subscription plan ${assigned.subscriptionPlanName} assigned to customer ${assigned.customerName}`,
-    200
-  );
+  return createSuccessResponse(assigned, 200);
 }

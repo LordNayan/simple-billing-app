@@ -1,6 +1,13 @@
 import { v4 as uuidv4 } from "uuid";
 import { Customer } from "../models/customer";
 import { SubscriptionPlanService } from "./subscriptionPlanService";
+import { generateInvoiceForCustomer } from "../utils/invoiceGenerator";
+import {
+  CreateCustomerRequest,
+  CreateCustomerResponse,
+  UpdateCustomerResponseSchema,
+} from "../schema/customer";
+import { ErrorSchema } from "../schema/error";
 
 export class CustomerService {
   private kvNamespace: KVNamespace;
@@ -13,15 +20,8 @@ export class CustomerService {
   }
 
   async createCustomer(
-    customerData: Omit<
-      Customer,
-      | "id"
-      | "subscriptionStatus"
-      | "subscriptionChangeDate"
-      | "previousSubscriptionPlanId"
-      | "previousSubscriptionChangeDate"
-    >
-  ): Promise<Customer | null> {
+    customerData: CreateCustomerRequest
+  ): Promise<CreateCustomerResponse | null> {
     if (await this.kvNamespace.get(`customer_email:${customerData.email}`)) {
       return null; // Customer with the same email already exists
     }
@@ -35,7 +35,10 @@ export class CustomerService {
     };
     await this.kvNamespace.put(`customer:${id}`, JSON.stringify(newCustomer));
     await this.kvNamespace.put(`customer_email:${customerData.email}`, "1");
-    return newCustomer;
+
+    // Generate the initial invoice for the new customer
+    const invoice = await generateInvoiceForCustomer(newCustomer);
+    return { customer: newCustomer, invoice: invoice };
   }
 
   async getCustomer(id: string): Promise<Customer | null> {
@@ -57,7 +60,7 @@ export class CustomerService {
   async assignSubscriptionPlan(
     customerId: string,
     subscriptionPlanId: string
-  ): Promise<UpdateCustomerResponseSchema | UpdateCustomerErrorSchema> {
+  ): Promise<UpdateCustomerResponseSchema | ErrorSchema> {
     try {
       const customer = await this.getCustomer(customerId);
       const plan = await this.supscriptionPlanService.getPlan(
@@ -78,7 +81,11 @@ export class CustomerService {
       customer.subscriptionPlanId = subscriptionPlanId;
       customer.subscriptionChangeDate = new Date();
       await this.updateCustomer(customer);
-      return { subscriptionPlanName: plan.name, customerName: customer.name };
+
+      // Generate a new invoice after assigning the new subscription plan
+      const newInvoice = await generateInvoiceForCustomer(customer);
+
+      return { customer: customer, invoice: newInvoice };
     } catch (e: any) {
       return { error: e.message };
     }
