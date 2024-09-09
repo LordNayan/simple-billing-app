@@ -12,3 +12,9 @@ export function createHttpError(
   error.statusCode = statusCode;
   return error;
 }
+
+export function isHttpError(object: any): object is HttpError {
+  return (
+    object && "statusCode" in object && typeof object.statusCode === "number"
+  );
+}

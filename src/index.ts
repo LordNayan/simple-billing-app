@@ -9,9 +9,13 @@ import {
   calculateDueDate,
   generateInvoiceForCustomer,
 } from "./utils/invoiceGenerator";
+import { PaymentService } from "./services/paymentService";
+import { Payment } from "./models/payment";
+import { isHttpError } from "./utils/httpError";
 
 const subscriptionPlanService = new SubscriptionPlanService();
 const customerService = new CustomerService();
+const paymentService = new PaymentService();
 
 addEventListener("fetch", (event) => {
   event.respondWith(handleRequest(event.request));
@@ -49,6 +53,15 @@ async function handleRequest(request: Request): Promise<Response> {
     }
   }
 
+  if (url.pathname.startsWith("/customer/invoices")) {
+    switch (request.method) {
+      case "GET":
+        return handleListInvoices(request);
+      default:
+        return createErrorResponse("Method not allowed", 405);
+    }
+  }
+
   if (url.pathname.startsWith("/customers")) {
     switch (request.method) {
       case "POST":
@@ -62,6 +75,16 @@ async function handleRequest(request: Request): Promise<Response> {
     }
   }
 
+  if (url.pathname.startsWith("/payments")) {
+    switch (request.method) {
+      case "POST":
+        return handleProcessPayment(request);
+      // Add any other payment-related methods here if needed
+      default:
+        return createErrorResponse("Method not allowed", 405);
+    }
+  }
+
   // Additional admin endpoint to empty the KV store
   if (url.pathname === "/admin/empty-kv" && request.method === "POST") {
     return handleEmptyKV();
@@ -69,7 +92,7 @@ async function handleRequest(request: Request): Promise<Response> {
 
   // Remove in last commit
   if (url.pathname === "/test" && request.method === "GET") {
-    await customerService.exampleAPI("5942137c-9ffd-438a-8abc-f2964b5223b9");
+    await customerService.exampleAPI("cb62df09-ad00-425e-81b1-48d068347331");
   }
 
   // Remove in last commit
@@ -128,7 +151,7 @@ async function handleCreateCustomer(request: Request): Promise<Response> {
   const customerData: Omit<Customer, "id" | "subscriptionStatus"> =
     await request.json();
   const newCustomer = await customerService.createCustomer(customerData);
-  if ("message" in newCustomer) {
+  if (isHttpError(newCustomer)) {
     return createErrorResponse(
       newCustomer.message,
       newCustomer.statusCode ?? 400
@@ -144,7 +167,7 @@ async function handleGetCustomer(request: Request): Promise<Response> {
   if (customer) {
     return createSuccessResponse(customer, 200);
   }
-  return createErrorResponse("Plan not found", 400);
+  return createErrorResponse("Customer not found", 400);
 }
 
 async function handleAssignSubscriptionPlan(
@@ -158,10 +181,32 @@ async function handleAssignSubscriptionPlan(
     customerId,
     subscriptionPlanId
   );
-  if ("message" in assigned) {
+  if (isHttpError(assigned)) {
     return createErrorResponse(assigned.message, assigned.statusCode ?? 400);
   }
   return createSuccessResponse(assigned, 200);
+}
+
+async function handleProcessPayment(request: Request): Promise<Response> {
+  const paymentData: Omit<Payment, "id" | "paymentDate"> = await request.json();
+  const payment = await paymentService.processPayment(paymentData);
+  if (isHttpError(payment)) {
+    return createErrorResponse(payment.message, payment.statusCode ?? 400);
+  }
+  return createSuccessResponse(payment, 200);
+}
+
+async function handleListInvoices(request: Request): Promise<Response> {
+  const url = new URL(request.url);
+  const id = url.pathname.split("/").pop();
+  if (id) {
+    const invoices = await customerService.listInvoices(id);
+    if (isHttpError(invoices)) {
+      return createErrorResponse(invoices.message, invoices.statusCode ?? 400);
+    }
+    return createSuccessResponse(invoices, 200);
+  }
+  return createErrorResponse("Bad Request", 400);
 }
 
 export async function handleScheduled(event: ScheduledEvent): Promise<void> {
@@ -186,26 +231,32 @@ export async function handleScheduled(event: ScheduledEvent): Promise<void> {
 
 // Remove in last commit
 export async function testScheduled(): Promise<void> {
-  let currentDate = new Date().toLocaleDateString("en-US");
-  currentDate = calculateDueDate(new Date(), "monthly").toLocaleDateString(
-    "en-US"
-  );
+  let currentDate = new Date();
+  currentDate.setMonth(currentDate.getMonth() + 6);
+  // currentDate = calculateDueDate(new Date(), "yearly").toLocaleDateString(
+  //   "en-US"
+  // );
+  const currDate = currentDate.toLocaleDateString("en-US");
   const { keys } = await BILLING_KV.list({
-    prefix: `invoiceGenerationDate:${currentDate}`,
+    prefix: `invoiceGenerationDate:`,
   });
+
+  // const { keys } = await BILLING_KV.list({
+  //   prefix: `invoiceGenerationDate:${currentDate}`,
+  // });
 
   if (keys.length > 0) {
     const customerIds = JSON.parse(
-      (await BILLING_KV.get(`invoiceGenerationDate:${currentDate}`)) ?? "[]"
+      (await BILLING_KV.get(`invoiceGenerationDate:4/10/2025`)) ?? "[]"
     );
 
     for (const customerId of customerIds) {
-      if (customerId === "8558d117-b082-4781-94ef-a25476ea1617") {
+      if (customerId === "9b27473d-e505-43f3-a7d1-6a047127c961") {
         await generateInvoiceForCustomer(customerId);
       }
     }
 
     // Delete the old invoice generation date key from KV
-    await BILLING_KV.delete(`invoiceGenerationDate:${currentDate}`);
+    await BILLING_KV.delete(`invoiceGenerationDate:${currDate}`);
   }
 }

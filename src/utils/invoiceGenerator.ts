@@ -24,35 +24,43 @@ export async function generateInvoiceForCustomer(
   if (!currentSubscriptionPlan) throw new Error("Subscription plan not found");
 
   const currentBillingCycle = currentSubscriptionPlan.billingCycle;
+  const newChangeDate = new Date(
+    customerData.subscriptionChanges[
+      customerData.subscriptionChanges.length - 1
+    ].changeDate
+  );
   const newInvoice: Invoice = {
     id: uuidv4(),
     customerId: customerData.id,
     amount: totalAmount,
-    dueDate: calculateDueDate(
-      new Date(customerData.subscriptionChanges[0].changeDate),
-      customerData.subscriptionChanges[0].billingCycle
-    ),
+    dueDate: calculateDueDate(newChangeDate, currentBillingCycle),
     paymentStatus: "pending",
   };
-
+  // "9b27473d-e505-43f3-a7d1-6a047127c961" customer
+  //"c2bb88a0-6fab-40c3-a0ec-543b11bdffcb" invoice
   // Create new invoice
   await kvNamespace.put(`invoice:${newInvoice.id}`, JSON.stringify(newInvoice));
 
-  // Save new invoice against a customer
-  const previousInvoices =
-    (await kvNamespace.get(`customer_invoices:${customerId}`)) || "[]";
+  // Update customer invoices list
+  const updatedInvoices = JSON.parse(
+    (await kvNamespace.get(`customer_invoices:${customerId}`)) || "[]"
+  );
+
+  // Add the new invoice to the array
+  updatedInvoices.push(newInvoice);
+
+  // Save the updated invoices array back to kvNamespace
   await kvNamespace.put(
     `customer_invoices:${customerId}`,
-    JSON.stringify(JSON.parse(previousInvoices).push(newInvoice))
+    JSON.stringify(updatedInvoices)
   );
 
   // Clear old subscription changes and keep the current active one with the new billing cycle
-  const changeDate = new Date();
-  changeDate.setDate(changeDate.getDate() + 1);
+  newChangeDate.setDate(newChangeDate.getDate() + 1);
   customerData.subscriptionChanges = [
     {
       subscriptionPlanId: customerData.currentSubscriptionPlanId,
-      changeDate: changeDate,
+      changeDate: newChangeDate,
       billingCycle: currentBillingCycle,
     },
   ];
@@ -64,7 +72,7 @@ export async function generateInvoiceForCustomer(
   // Store the invoice generation date and customer active bill date
   await storeInvoiceGenerationDate(
     customerId,
-    changeDate,
+    newChangeDate,
     currentSubscriptionPlan
   );
 
@@ -113,16 +121,22 @@ export async function changeInvoiceGenerationDate(
     `customerActiveBillDate:${customerId}`
   );
 
-  const previousInvoiceGenerationDateCustomerArray = await kvNamespace.get(
-    `invoiceGenerationDate:${currentBillDate}`
+  const previousInvoiceGenerationDateCustomerArray = JSON.parse(
+    (await kvNamespace.get(`invoiceGenerationDate:${currentBillDate}`)) || "[]"
   );
-  const updatedCustomerArray = JSON.parse(
-    previousInvoiceGenerationDateCustomerArray!
-  )?.filter((customerId: string) => customerId != customerId);
-  await kvNamespace.put(
-    `invoiceGenerationDate:${currentBillDate}`,
-    JSON.stringify(updatedCustomerArray)
-  );
+
+  const updatedCustomerArray =
+    previousInvoiceGenerationDateCustomerArray.filter(
+      (id: string) => id != customerId
+    );
+
+  // Update or delete the previous invoice generation date array
+  updatedCustomerArray.length
+    ? await kvNamespace.put(
+        `invoiceGenerationDate:${currentBillDate}`,
+        JSON.stringify(updatedCustomerArray)
+      )
+    : await kvNamespace.delete(`invoiceGenerationDate:${currentBillDate}`);
 
   // Add it to the monthly cycle
   return await storeInvoiceGenerationDate(
@@ -137,14 +151,25 @@ async function calculateProratedCharges(customer: Customer): Promise<number> {
   const currentCycleStart = new Date(
     customer.subscriptionChanges[0].changeDate
   );
-  const billingCycleEndDate = new Date(currentCycleStart);
-  billingCycleEndDate.setMonth(billingCycleEndDate.getMonth() + 1); // Assume monthly cycle
+
+  let billingCycleEndDate = new Date(currentCycleStart);
+  if (customer.subscriptionChanges[0].billingCycle === "monthly") {
+    billingCycleEndDate.setMonth(billingCycleEndDate.getMonth() + 1);
+  } else {
+    billingCycleEndDate.setFullYear(billingCycleEndDate.getFullYear() + 1);
+  }
 
   for (let i = 0; i < customer.subscriptionChanges.length; i++) {
     const change = customer.subscriptionChanges[i];
     const nextChangeDate =
       i < customer.subscriptionChanges.length - 1
         ? new Date(customer.subscriptionChanges[i + 1].changeDate)
+        : customer.subscriptionChanges[i - 1].billingCycle === "yearly" &&
+          customer.subscriptionChanges[i].billingCycle === "monthly"
+        ? calculateDueDate(
+            customer.subscriptionChanges[i].changeDate,
+            "monthly"
+          )
         : billingCycleEndDate;
 
     const daysUsed = Math.floor(

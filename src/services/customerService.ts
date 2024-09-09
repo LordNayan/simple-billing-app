@@ -7,6 +7,7 @@ import {
 } from "../utils/invoiceGenerator";
 import { CreateCustomerRequest } from "../schema/customer";
 import { createHttpError, HttpError } from "../utils/httpError";
+import { Invoice } from "../models/invoice";
 
 export class CustomerService {
   private kvNamespace: KVNamespace;
@@ -102,7 +103,7 @@ export class CustomerService {
     const subscriptionChangeDate = new Date();
 
     // Remove in last commit
-    // subscriptionChangeDate.setDate(subscriptionChangeDate.getDate() + 25);
+    subscriptionChangeDate.setMonth(subscriptionChangeDate.getMonth() + 6);
 
     // Edge case where customers bill date will become earlier than the present bill date
     if (
@@ -129,6 +130,18 @@ export class CustomerService {
     await this.updateCustomer(customer);
 
     return customer;
+  }
+
+  async listInvoices(customerId: string): Promise<Array<Invoice> | HttpError> {
+    const customerInvoices = JSON.parse(
+      (await this.kvNamespace.get(`customer_invoices:${customerId}`)) || "[]"
+    );
+
+    if (!customerInvoices.length) {
+      return createHttpError("No invoices found", 404);
+    }
+
+    return customerInvoices;
   }
 
   // Remove in last commit
