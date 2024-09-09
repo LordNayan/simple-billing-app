@@ -1,44 +1,65 @@
 import { v4 as uuidv4 } from "uuid";
-import { Customer } from "../models/customer";
+import { Customer, SubscriptionChange } from "../models/customer";
 import { SubscriptionPlanService } from "./subscriptionPlanService";
-import { generateInvoiceForCustomer } from "../utils/invoiceGenerator";
 import {
-  CreateCustomerRequest,
-  CreateCustomerResponse,
-  UpdateCustomerResponseSchema,
-} from "../schema/customer";
-import { ErrorSchema } from "../schema/error";
+  changeInvoiceGenerationDate,
+  storeInvoiceGenerationDate,
+} from "../utils/invoiceGenerator";
+import { CreateCustomerRequest } from "../schema/customer";
+import { createHttpError, HttpError } from "../utils/httpError";
 
 export class CustomerService {
   private kvNamespace: KVNamespace;
   private supscriptionPlanService: SubscriptionPlanService;
 
   constructor() {
-    // Use the KV namespace binding defined in wrangler.toml
     this.kvNamespace = BILLING_KV;
     this.supscriptionPlanService = new SubscriptionPlanService();
   }
 
   async createCustomer(
     customerData: CreateCustomerRequest
-  ): Promise<CreateCustomerResponse | null> {
-    if (await this.kvNamespace.get(`customer_email:${customerData.email}`)) {
-      return null; // Customer with the same email already exists
+  ): Promise<Customer | HttpError> {
+    const customer = await this.kvNamespace.get(
+      `customer_email:${customerData.email}`
+    );
+    if (customer) {
+      return createHttpError("Customer already exists", 409);
     }
-    const id = uuidv4();
+    const plan = await this.supscriptionPlanService.getPlan(
+      customerData.currentSubscriptionPlanId
+    );
+    if (!plan) {
+      return createHttpError("Plan dosent exist", 400);
+    }
+
+    const customerId = uuidv4();
+    const subscriptionChangeDate = new Date();
+
+    // Add subscription change to track changes
+    const subscriptionChange: SubscriptionChange = {
+      subscriptionPlanId: customerData.currentSubscriptionPlanId,
+      changeDate: subscriptionChangeDate,
+      billingCycle: plan.billingCycle,
+    };
+
     const newCustomer: Customer = {
       ...customerData,
-      id,
-      subscriptionStatus: "active",
-      subscriptionChangeDate: new Date(), // Initialize subscription change date to current date
-      // Initialize previous subscription fields as undefined since this is the first plan
+      id: customerId,
+      currentSubscriptionStatus: "active",
+      subscriptionChanges: [subscriptionChange],
     };
-    await this.kvNamespace.put(`customer:${id}`, JSON.stringify(newCustomer));
+
+    await this.kvNamespace.put(
+      `customer:${customerId}`,
+      JSON.stringify(newCustomer)
+    );
+
+    // for tracking duplicate emails
     await this.kvNamespace.put(`customer_email:${customerData.email}`, "1");
 
-    // Generate the initial invoice for the new customer
-    const invoice = await generateInvoiceForCustomer(newCustomer);
-    return { customer: newCustomer, invoice: invoice };
+    await storeInvoiceGenerationDate(customerId, subscriptionChangeDate, plan);
+    return newCustomer;
   }
 
   async getCustomer(id: string): Promise<Customer | null> {
@@ -60,34 +81,71 @@ export class CustomerService {
   async assignSubscriptionPlan(
     customerId: string,
     subscriptionPlanId: string
-  ): Promise<UpdateCustomerResponseSchema | ErrorSchema> {
-    try {
-      const customer = await this.getCustomer(customerId);
-      const plan = await this.supscriptionPlanService.getPlan(
-        subscriptionPlanId
-      );
-      if (!customer || !plan) {
-        throw new Error("Incorrect data provided");
-      }
-
-      // Dont assign plan, if same plan is already active
-      if (customer.subscriptionPlanId == subscriptionPlanId) {
-        throw new Error("Subscription plan already active");
-      }
-
-      // Update previous subscription id and set new current supscription
-      customer.previousSubscriptionPlanId = customer.subscriptionPlanId;
-      customer.previousSubscriptionChangeDate = customer.subscriptionChangeDate;
-      customer.subscriptionPlanId = subscriptionPlanId;
-      customer.subscriptionChangeDate = new Date();
-      await this.updateCustomer(customer);
-
-      // Generate a new invoice after assigning the new subscription plan
-      const newInvoice = await generateInvoiceForCustomer(customer);
-
-      return { customer: customer, invoice: newInvoice };
-    } catch (e: any) {
-      return { error: e.message };
+  ): Promise<Customer | HttpError> {
+    const customer = await this.getCustomer(customerId);
+    const newPlan = await this.supscriptionPlanService.getPlan(
+      subscriptionPlanId
+    );
+    if (!customer || !newPlan) {
+      return createHttpError("Incorrect data provided", 400);
     }
+
+    // Dont assign plan, if same plan is already active
+    if (customer.currentSubscriptionPlanId == subscriptionPlanId) {
+      return createHttpError("Subscription plan already active", 400);
+    }
+
+    const oldPlan = await this.supscriptionPlanService.getPlan(
+      customer.currentSubscriptionPlanId
+    );
+
+    const subscriptionChangeDate = new Date();
+
+    // Remove in last commit
+    // subscriptionChangeDate.setDate(subscriptionChangeDate.getDate() + 25);
+
+    // Edge case where customers bill date will become earlier than the present bill date
+    if (
+      oldPlan?.billingCycle === "yearly" &&
+      newPlan.billingCycle === "monthly"
+    ) {
+      await changeInvoiceGenerationDate(
+        customerId,
+        subscriptionChangeDate,
+        newPlan
+      );
+    }
+
+    // Add subscription change to track changes
+    const subscriptionChange: SubscriptionChange = {
+      subscriptionPlanId: subscriptionPlanId,
+      changeDate: subscriptionChangeDate,
+      billingCycle: newPlan.billingCycle,
+    };
+    customer.subscriptionChanges.push(subscriptionChange);
+
+    // Update current subscription to new plan
+    customer.currentSubscriptionPlanId = subscriptionPlanId;
+    await this.updateCustomer(customer);
+
+    return customer;
+  }
+
+  // Remove in last commit
+  async exampleAPI(customerId: string): Promise<void> {
+    const currentBillDate = await this.kvNamespace.get(
+      `customerActiveBillDate:${customerId}`
+    );
+
+    console.log("currentBillDate ====> ", currentBillDate);
+
+    const previousInvoiceGenerationDateCustomerArray =
+      await this.kvNamespace.get(`invoiceGenerationDate:${currentBillDate}`);
+
+    console.log(
+      "previousInvoiceGenerationDateCustomerArray ====> ",
+      previousInvoiceGenerationDateCustomerArray
+    );
   }
 }
+

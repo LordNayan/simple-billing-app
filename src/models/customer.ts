@@ -2,9 +2,13 @@ export interface Customer {
   id: string;
   name: string;
   email: string;
+  currentSubscriptionPlanId: string;
+  subscriptionChanges: SubscriptionChange[];
+  currentSubscriptionStatus: "active" | "cancelled";
+}
+
+export interface SubscriptionChange {
   subscriptionPlanId: string;
-  subscriptionStatus: "active" | "cancelled";
-  subscriptionChangeDate: Date;
-  previousSubscriptionPlanId?: string;
-  previousSubscriptionChangeDate?: Date;
+  changeDate: Date;
+  billingCycle: "monthly" | "yearly";
 }

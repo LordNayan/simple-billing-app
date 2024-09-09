@@ -5,12 +5,20 @@ import { createSuccessResponse } from "./utils/responses";
 import { CustomerService } from "./services/customerService";
 import { Customer } from "./models/customer";
 import { emptyKVStore } from "./utils/kvStore";
+import {
+  calculateDueDate,
+  generateInvoiceForCustomer,
+} from "./utils/invoiceGenerator";
 
 const subscriptionPlanService = new SubscriptionPlanService();
 const customerService = new CustomerService();
 
 addEventListener("fetch", (event) => {
   event.respondWith(handleRequest(event.request));
+});
+
+addEventListener("scheduled", (event) => {
+  event.waitUntil(handleScheduled(event));
 });
 
 async function handleRequest(request: Request): Promise<Response> {
@@ -57,6 +65,16 @@ async function handleRequest(request: Request): Promise<Response> {
   // Additional admin endpoint to empty the KV store
   if (url.pathname === "/admin/empty-kv" && request.method === "POST") {
     return handleEmptyKV();
+  }
+
+  // Remove in last commit
+  if (url.pathname === "/test" && request.method === "GET") {
+    await customerService.exampleAPI("5942137c-9ffd-438a-8abc-f2964b5223b9");
+  }
+
+  // Remove in last commit
+  if (url.pathname === "/test1" && request.method === "GET") {
+    await testScheduled();
   }
 
   return new Response("Not found", { status: 404 });
@@ -110,8 +128,11 @@ async function handleCreateCustomer(request: Request): Promise<Response> {
   const customerData: Omit<Customer, "id" | "subscriptionStatus"> =
     await request.json();
   const newCustomer = await customerService.createCustomer(customerData);
-  if (!newCustomer) {
-    return createErrorResponse("Customer already exists", 409);
+  if ("message" in newCustomer) {
+    return createErrorResponse(
+      newCustomer.message,
+      newCustomer.statusCode ?? 400
+    );
   }
   return createSuccessResponse(newCustomer, 201);
 }
@@ -137,8 +158,54 @@ async function handleAssignSubscriptionPlan(
     customerId,
     subscriptionPlanId
   );
-  if ("error" in assigned) {
-    return createErrorResponse(assigned.error, 400);
+  if ("message" in assigned) {
+    return createErrorResponse(assigned.message, assigned.statusCode ?? 400);
   }
   return createSuccessResponse(assigned, 200);
+}
+
+export async function handleScheduled(event: ScheduledEvent): Promise<void> {
+  const currentDate = new Date().toLocaleDateString("en-US");
+
+  const { keys } = await BILLING_KV.list({
+    prefix: `invoiceGenerationDate:${currentDate}`,
+  });
+
+  if (keys.length > 0) {
+    const customerIds = JSON.parse(
+      (await BILLING_KV.get(`invoiceGenerationDate:${currentDate}`)) ?? "[]"
+    );
+    for (const customerId of customerIds) {
+      await generateInvoiceForCustomer(customerId);
+    }
+
+    // Delete the old invoice generation date key from KV
+    await BILLING_KV.delete(`invoiceGenerationDate:${currentDate}`);
+  }
+}
+
+// Remove in last commit
+export async function testScheduled(): Promise<void> {
+  let currentDate = new Date().toLocaleDateString("en-US");
+  currentDate = calculateDueDate(new Date(), "monthly").toLocaleDateString(
+    "en-US"
+  );
+  const { keys } = await BILLING_KV.list({
+    prefix: `invoiceGenerationDate:${currentDate}`,
+  });
+
+  if (keys.length > 0) {
+    const customerIds = JSON.parse(
+      (await BILLING_KV.get(`invoiceGenerationDate:${currentDate}`)) ?? "[]"
+    );
+
+    for (const customerId of customerIds) {
+      if (customerId === "8558d117-b082-4781-94ef-a25476ea1617") {
+        await generateInvoiceForCustomer(customerId);
+      }
+    }
+
+    // Delete the old invoice generation date key from KV
+    await BILLING_KV.delete(`invoiceGenerationDate:${currentDate}`);
+  }
 }
