@@ -145,20 +145,21 @@ export class CustomerService {
   }
 
   // Remove in last commit
-  async exampleAPI(customerId: string): Promise<void> {
-    const currentBillDate = await this.kvNamespace.get(
-      `customerActiveBillDate:${customerId}`
+  async getCurrentBillDate(customerId: string): Promise<{
+    currentBillDate: string;
+    previousInvoiceGenerationDateCustomerArray: Array<string>;
+  }> {
+    const currentBillDate =
+      (await this.kvNamespace.get(`customerActiveBillDate:${customerId}`)) ||
+      "";
+
+    const previousInvoiceGenerationDateCustomerArray = JSON.parse(
+      (await this.kvNamespace.get(
+        `invoiceGenerationDate:${currentBillDate}`
+      )) || "[]"
     );
 
-    console.log("currentBillDate ====> ", currentBillDate);
-
-    const previousInvoiceGenerationDateCustomerArray =
-      await this.kvNamespace.get(`invoiceGenerationDate:${currentBillDate}`);
-
-    console.log(
-      "previousInvoiceGenerationDateCustomerArray ====> ",
-      previousInvoiceGenerationDateCustomerArray
-    );
+    return { currentBillDate, previousInvoiceGenerationDateCustomerArray };
   }
 }
 
