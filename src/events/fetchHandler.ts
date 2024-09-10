@@ -59,7 +59,7 @@ export async function handleRequest(request: Request): Promise<Response> {
   const path = url.pathname;
 
   // Find the route and method
-  const route = Object.keys(routeHandlers).find((r) => path.startsWith(r));
+  const route = Object.keys(routeHandlers).find((r) => r.startsWith(path));
 
   if (route) {
     const methodHandler = routeHandlers[route][request.method];
