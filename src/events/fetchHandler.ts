@@ -18,55 +18,97 @@ import {
   handleGetCurrentBillDate,
 } from "../routes/testRoutes";
 
-const routeHandlers: Record<
-  string,
-  Record<string, (req: Request) => Promise<Response>>
-> = {
-  "/": {
-    GET: async () =>
-      new Response("Welcome to Nayan's simple billing app", { status: 200 }),
+// Define route handlers using regular expressions for dynamic IDs
+const routeHandlers: Array<{
+  pattern: RegExp;
+  methods: Record<
+    string,
+    (req: Request, params?: Record<string, string>) => Promise<Response>
+  >;
+}> = [
+  {
+    pattern: /^\/$/, // Root path
+    methods: {
+      GET: async () =>
+        new Response("Welcome to Nayan's simple billing app", { status: 200 }),
+    },
   },
-  "/plans": {
-    POST: handleCreatePlan,
-    GET: handleGetPlan,
-    PUT: handleUpdatePlan,
-    DELETE: handleDeletePlan,
+  {
+    pattern: /^\/plans$/, // Customers without ID (for POST)
+    methods: {
+      POST: handleCreatePlan,
+    },
   },
-  "/customers": {
-    POST: handleCreateCustomer,
-    GET: handleGetCustomer,
-    PUT: handleAssignSubscriptionPlan,
+  {
+    pattern: /^\/plans\/([a-zA-Z0-9-]+)$/, // Plans with dynamic ID
+    methods: {
+      GET: handleGetPlan,
+      PUT: handleUpdatePlan,
+      DELETE: handleDeletePlan,
+    },
   },
-  "/payments": {
-    POST: handleProcessPayment,
+  {
+    pattern: /^\/customers$/, // Customers without ID (for POST)
+    methods: {
+      POST: handleCreateCustomer,
+    },
   },
-  "/customer/invoices": {
-    GET: handleListInvoices,
+  {
+    pattern: /^\/customers\/([a-zA-Z0-9-]+)$/, // Customers with dynamic ID
+    methods: {
+      GET: handleGetCustomer,
+      PUT: handleAssignSubscriptionPlan,
+    },
   },
-  "/admin/empty-kv": {
-    POST: handleEmptyKV,
+  {
+    pattern: /^\/payments$/, // Payments
+    methods: {
+      POST: handleProcessPayment,
+    },
   },
-  "/test/getCurrentBillDate": {
-    GET: handleGetCurrentBillDate,
+  {
+    pattern: /^\/customer\/([a-zA-Z0-9-]+)\/invoices$/, // Customer invoices with dynamic ID
+    methods: {
+      GET: handleListInvoices,
+    },
   },
-  "/test/generateInvoice": {
-    POST: generateInvoice,
+  {
+    pattern: /^\/admin\/empty-kv$/, // Admin empty KV
+    methods: {
+      POST: handleEmptyKV,
+    },
   },
-};
+  {
+    pattern: /^\/test\/getCurrentBillDate\/([a-zA-Z0-9-]+)$/, // Test getCurrentBillDate with dynamic ID
+    methods: {
+      GET: handleGetCurrentBillDate,
+    },
+  },
+  {
+    pattern: /^\/test\/generateInvoice$/, // Test generateInvoice
+    methods: {
+      POST: generateInvoice,
+    },
+  },
+];
 
+// Handle requests based on the matching route pattern
 export async function handleRequest(request: Request): Promise<Response> {
   const url = new URL(request.url);
   const path = url.pathname;
 
-  // Find the route and method
-  const route = Object.keys(routeHandlers).find((r) => r.startsWith(path));
-
-  if (route) {
-    const methodHandler = routeHandlers[route][request.method];
-    if (methodHandler) {
-      return methodHandler(request);
-    } else {
-      return createErrorResponse("Method not allowed", 405);
+  // Loop through all the route handlers to find a matching route
+  for (const route of routeHandlers) {
+    const match = path.match(route.pattern);
+    if (match) {
+      const methodHandler = route.methods[request.method];
+      if (methodHandler) {
+        // Extract the path parameters (like ID) from the regex match
+        const params = { id: match[1] }; // Assuming the first capture group is the ID
+        return methodHandler(request, params);
+      } else {
+        return createErrorResponse("Method not allowed", 405);
+      }
     }
   }
 

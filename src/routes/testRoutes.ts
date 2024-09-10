@@ -2,6 +2,7 @@ import { CustomerService } from "../services/customerService";
 import { createErrorResponse } from "../utils/responses";
 import { generateInvoiceForCustomer } from "../utils/invoiceGenerator";
 import { createSuccessResponse } from "../utils/responses";
+import { Invoice } from "../models/invoice";
 
 const customerService = new CustomerService();
 
@@ -29,13 +30,13 @@ export async function generateInvoice(request: Request): Promise<Response> {
   );
 
   // Go over a particular customer to generate his invoice to test
+  let invoice: Invoice;
   for (const id of customerIds) {
     if (id === customerId) {
-      await generateInvoiceForCustomer(customerId);
+      invoice = await generateInvoiceForCustomer(customerId);
+      await BILLING_KV.delete(`invoiceGenerationDate:${invoiceGenerationDate}`);
+      return createSuccessResponse(invoice, 201);
     }
   }
-
-  // Delete the old invoice generation date key from KV
-  await BILLING_KV.delete(`invoiceGenerationDate:${invoiceGenerationDate}`);
-  return createSuccessResponse(`Invoice Generated for ${customerId}`, 200);
+  return createSuccessResponse("", 201);
 }

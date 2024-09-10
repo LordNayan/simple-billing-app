@@ -24,9 +24,11 @@ export async function handleCreateCustomer(
 export async function handleGetCustomer(request: Request): Promise<Response> {
   const url = new URL(request.url);
   const id = url.pathname.split("/").pop();
-  const customer = await customerService.getCustomer(id!);
-  if (customer) {
-    return createSuccessResponse(customer, 200);
+  if (id) {
+    const customer = await customerService.getCustomer(id);
+    if (customer) {
+      return createSuccessResponse(customer, 200);
+    }
   }
   return createErrorResponse("Customer not found", 400);
 }
@@ -34,23 +36,26 @@ export async function handleGetCustomer(request: Request): Promise<Response> {
 export async function handleAssignSubscriptionPlan(
   request: Request
 ): Promise<Response> {
-  const {
-    customerId,
-    subscriptionPlanId,
-  }: { customerId: string; subscriptionPlanId: string } = await request.json();
-  const assigned = await customerService.assignSubscriptionPlan(
-    customerId,
-    subscriptionPlanId
-  );
-  if (isHttpError(assigned)) {
-    return createErrorResponse(assigned.message, assigned.statusCode ?? 400);
+  const { subscriptionPlanId }: { subscriptionPlanId: string } =
+    await request.json();
+  const url = new URL(request.url);
+  const id = url.pathname.split("/").pop();
+  if (id) {
+    const assigned = await customerService.assignSubscriptionPlan(
+      id,
+      subscriptionPlanId
+    );
+    if (isHttpError(assigned)) {
+      return createErrorResponse(assigned.message, assigned.statusCode ?? 400);
+    }
+    return createSuccessResponse(assigned, 200);
   }
-  return createSuccessResponse(assigned, 200);
+  return createErrorResponse("Customer not found", 400);
 }
 
 export async function handleListInvoices(request: Request): Promise<Response> {
   const url = new URL(request.url);
-  const id = url.pathname.split("/").pop();
+  const id = url.pathname.split("/").slice(-2, -1)[0];
   if (id) {
     const invoices = await customerService.listInvoices(id);
     if (isHttpError(invoices)) {
@@ -58,5 +63,5 @@ export async function handleListInvoices(request: Request): Promise<Response> {
     }
     return createSuccessResponse(invoices, 200);
   }
-  return createErrorResponse("Bad Request", 400);
+  return createErrorResponse("Customer not found", 400);
 }
