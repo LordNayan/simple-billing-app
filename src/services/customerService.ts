@@ -59,11 +59,6 @@ export class CustomerService {
     // for tracking duplicate emails
     await this.kvNamespace.put(`customer_email:${customerData.email}`, "1");
 
-    // Mohnish - Monthly - 1 January - 31st january
-
-    // invoiceGenerationDate_01/31/2024 - [1]
-    //
-
     await storeInvoiceGenerationDate(customerId, subscriptionChangeDate, plan);
     return newCustomer;
   }
