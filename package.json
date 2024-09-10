@@ -21,6 +21,7 @@
     "wrangler": "^3.60.3"
   },
   "dependencies": {
+    "@sendgrid/mail": "^8.1.3",
     "uuid": "^10.0.0"
   }
 }

@@ -3,6 +3,7 @@ import { Invoice } from "../models/invoice";
 import { SubscriptionPlanService } from "../services/subscriptionPlanService";
 import { SubscriptionPlan } from "../models/subscriptionPlan";
 import { Customer } from "../models/customer";
+import { sendEmailNotification } from "./email";
 
 const subscriptionPlanService = new SubscriptionPlanService();
 const kvNamespace = BILLING_KV;
@@ -14,7 +15,7 @@ export async function generateInvoiceForCustomer(
 
   if (!customer) throw new Error("Customer not found");
 
-  const customerData = JSON.parse(customer);
+  const customerData: Customer = JSON.parse(customer);
 
   const totalAmount = await calculateProratedCharges(customerData);
 
@@ -36,10 +37,17 @@ export async function generateInvoiceForCustomer(
     dueDate: calculateDueDate(newChangeDate, currentBillingCycle),
     paymentStatus: "pending",
   };
-  // "9b27473d-e505-43f3-a7d1-6a047127c961" customer
-  //"c2bb88a0-6fab-40c3-a0ec-543b11bdffcb" invoice
+
   // Create new invoice
   await kvNamespace.put(`invoice:${newInvoice.id}`, JSON.stringify(newInvoice));
+
+  // Send email notification - We can replicate the same everywhere. Commenting for now.
+  const emailPayload = {
+    to: customerData.email,
+    subject: `Invoice: ${newInvoice.id} created succesfully`,
+    text: "Please do not reply to this mail. In case of support required, please contact at nayan@simplebillingaspp.com",
+  };
+  // await sendEmailNotification(emailPayload);
 
   // Update customer invoices list
   const updatedInvoices = JSON.parse(
