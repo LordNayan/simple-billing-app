@@ -103,7 +103,7 @@ export class CustomerService {
     const subscriptionChangeDate = new Date();
 
     // Remove in last commit
-    subscriptionChangeDate.setMonth(subscriptionChangeDate.getMonth() + 6);
+    // subscriptionChangeDate.setMonth(subscriptionChangeDate.getMonth() + 6);
 
     // Edge case where customers bill date will become earlier than the present bill date
     if (
@@ -145,20 +145,21 @@ export class CustomerService {
   }
 
   // Remove in last commit
-  async exampleAPI(customerId: string): Promise<void> {
-    const currentBillDate = await this.kvNamespace.get(
-      `customerActiveBillDate:${customerId}`
+  async getCurrentBillDate(customerId: string): Promise<{
+    currentBillDate: string;
+    previousInvoiceGenerationDateCustomerArray: Array<string>;
+  }> {
+    const currentBillDate =
+      (await this.kvNamespace.get(`customerActiveBillDate:${customerId}`)) ||
+      "";
+
+    const previousInvoiceGenerationDateCustomerArray = JSON.parse(
+      (await this.kvNamespace.get(
+        `invoiceGenerationDate:${currentBillDate}`
+      )) || "[]"
     );
 
-    console.log("currentBillDate ====> ", currentBillDate);
-
-    const previousInvoiceGenerationDateCustomerArray =
-      await this.kvNamespace.get(`invoiceGenerationDate:${currentBillDate}`);
-
-    console.log(
-      "previousInvoiceGenerationDateCustomerArray ====> ",
-      previousInvoiceGenerationDateCustomerArray
-    );
+    return { currentBillDate, previousInvoiceGenerationDateCustomerArray };
   }
 }
 
