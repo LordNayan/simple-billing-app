@@ -34,7 +34,7 @@ const routeHandlers: Array<{
     },
   },
   {
-    pattern: /^\/plans$/, // Customers without ID (for POST)
+    pattern: /^\/plans$/, // Plans without id
     methods: {
       POST: handleCreatePlan,
     },

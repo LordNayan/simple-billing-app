@@ -25,16 +25,12 @@ export async function generateInvoiceForCustomer(
   if (!currentSubscriptionPlan) throw new Error("Subscription plan not found");
 
   const currentBillingCycle = currentSubscriptionPlan.billingCycle;
-  const newChangeDate = new Date(
-    customerData.subscriptionChanges[
-      customerData.subscriptionChanges.length - 1
-    ].changeDate
-  );
+  const newChangeDate = new Date();
   const newInvoice: Invoice = {
     id: uuidv4(),
     customerId: customerData.id,
     amount: totalAmount,
-    dueDate: calculateDueDate(newChangeDate, currentBillingCycle),
+    dueDate: newChangeDate,
     paymentStatus: "pending",
   };
 
@@ -97,7 +93,7 @@ export async function storeInvoiceGenerationDate(
     plan.billingCycle
   ).toLocaleDateString("en-US");
 
-  // Prepare a customer array to store all customers with same active bill date
+  // Prepare a customer array to store all customers with same invoice generation date
   const invoiceGenerationDateCustomerArray = await kvNamespace.get(
     `invoiceGenerationDate:${planEndDate}`
   );
@@ -169,6 +165,7 @@ async function calculateProratedCharges(customer: Customer): Promise<number> {
 
   for (let i = 0; i < customer.subscriptionChanges.length; i++) {
     const change = customer.subscriptionChanges[i];
+
     const nextChangeDate =
       i < customer.subscriptionChanges.length - 1
         ? new Date(customer.subscriptionChanges[i + 1].changeDate)
@@ -184,9 +181,11 @@ async function calculateProratedCharges(customer: Customer): Promise<number> {
       (nextChangeDate.getTime() - new Date(change.changeDate).getTime()) /
         (1000 * 3600 * 24)
     );
+
     const currentPlan = await subscriptionPlanService.getPlan(
       change.subscriptionPlanId
     );
+
     const daysInCycle = getDaysInCycle(currentPlan!.billingCycle);
 
     totalProratedAmount += (currentPlan!.price / daysInCycle) * daysUsed;

@@ -103,7 +103,7 @@ export class CustomerService {
     const subscriptionChangeDate = new Date();
 
     // Remove in last commit
-    subscriptionChangeDate.setMonth(subscriptionChangeDate.getMonth() + 6);
+    subscriptionChangeDate.setDate(subscriptionChangeDate.getDate() + 25);
 
     // Edge case where customers bill date will become earlier than the present bill date
     if (
