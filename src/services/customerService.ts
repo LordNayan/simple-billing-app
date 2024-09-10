@@ -59,6 +59,11 @@ export class CustomerService {
     // for tracking duplicate emails
     await this.kvNamespace.put(`customer_email:${customerData.email}`, "1");
 
+    // Mohnish - Monthly - 1 January - 31st january
+
+    // invoiceGenerationDate_01/31/2024 - [1]
+    //
+
     await storeInvoiceGenerationDate(customerId, subscriptionChangeDate, plan);
     return newCustomer;
   }
@@ -103,7 +108,7 @@ export class CustomerService {
     const subscriptionChangeDate = new Date();
 
     // Remove in last commit
-    subscriptionChangeDate.setMonth(subscriptionChangeDate.getMonth() + 6);
+    subscriptionChangeDate.setDate(subscriptionChangeDate.getDate() + 25);
 
     // Edge case where customers bill date will become earlier than the present bill date
     if (

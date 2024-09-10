@@ -25,16 +25,12 @@ export async function generateInvoiceForCustomer(
   if (!currentSubscriptionPlan) throw new Error("Subscription plan not found");
 
   const currentBillingCycle = currentSubscriptionPlan.billingCycle;
-  const newChangeDate = new Date(
-    customerData.subscriptionChanges[
-      customerData.subscriptionChanges.length - 1
-    ].changeDate
-  );
+  const newChangeDate = new Date();
   const newInvoice: Invoice = {
     id: uuidv4(),
     customerId: customerData.id,
     amount: totalAmount,
-    dueDate: calculateDueDate(newChangeDate, currentBillingCycle),
+    dueDate: newChangeDate,
     paymentStatus: "pending",
   };
 
@@ -97,7 +93,7 @@ export async function storeInvoiceGenerationDate(
     plan.billingCycle
   ).toLocaleDateString("en-US");
 
-  // Prepare a customer array to store all customers with same active bill date
+  // Prepare a customer array to store all customers with same invoice generation date
   const invoiceGenerationDateCustomerArray = await kvNamespace.get(
     `invoiceGenerationDate:${planEndDate}`
   );
@@ -160,6 +156,8 @@ async function calculateProratedCharges(customer: Customer): Promise<number> {
     customer.subscriptionChanges[0].changeDate
   );
 
+  // currentCycleStart - 10 Sep
+
   let billingCycleEndDate = new Date(currentCycleStart);
   if (customer.subscriptionChanges[0].billingCycle === "monthly") {
     billingCycleEndDate.setMonth(billingCycleEndDate.getMonth() + 1);
@@ -167,8 +165,19 @@ async function calculateProratedCharges(customer: Customer): Promise<number> {
     billingCycleEndDate.setFullYear(billingCycleEndDate.getFullYear() + 1);
   }
 
+  // billingCycleEndDate - 11 October
+
   for (let i = 0; i < customer.subscriptionChanges.length; i++) {
+    // 3rd iteration - i = 2
     const change = customer.subscriptionChanges[i];
+
+    //   {
+    //     "subscriptionPlanId": "7891f61d-1488-4cb7-a2f1-161e29bfe0a2",
+    //     "changeDate": "2024-10-05T20:40:04.034Z",
+    //     "billingCycle": "yearly"
+    // }
+
+    //nextChangeDate - billingEndDate - 11
     const nextChangeDate =
       i < customer.subscriptionChanges.length - 1
         ? new Date(customer.subscriptionChanges[i + 1].changeDate)
@@ -180,15 +189,21 @@ async function calculateProratedCharges(customer: Customer): Promise<number> {
           )
         : billingCycleEndDate;
 
+    // daysUsed = 11 - 5 - 6 days
     const daysUsed = Math.floor(
       (nextChangeDate.getTime() - new Date(change.changeDate).getTime()) /
         (1000 * 3600 * 24)
     );
+
+    // Yearly Plan - 1000 - i[2]
     const currentPlan = await subscriptionPlanService.getPlan(
       change.subscriptionPlanId
     );
+
+    // daysInCycle - 365
     const daysInCycle = getDaysInCycle(currentPlan!.billingCycle);
 
+    // 10 days - 2nd plan - 1000/365 * 5
     totalProratedAmount += (currentPlan!.price / daysInCycle) * daysUsed;
   }
 
