@@ -1,0 +1,198 @@
+{
+	"info": {
+		"_postman_id": "91fbb3ee-21c1-443e-bd6a-7a0e87fe68b9",
+		"name": "Billing App",
+		"schema": "https://schema.getpostman.com/json/collection/v2.0.0/collection.json",
+		"_exporter_id": "8500267",
+		"_collection_link": "https://galactic-crater-8317.postman.co/workspace/Team-Workspace~fbdc40a1-34f1-4b0d-859c-edaf974d980d/collection/8500267-91fbb3ee-21c1-443e-bd6a-7a0e87fe68b9?action=share&source=collection_link&creator=8500267"
+	},
+	"item": [
+		{
+			"name": "Subscription Plans",
+			"item": [
+				{
+					"name": "Create Plan",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"name\": \"Pro Plan 222\",\n  \"billingCycle\": \"monthly\",\n  \"price\": 200,\n  \"status\": \"active\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": "http://localhost:8787/plans"
+					},
+					"response": []
+				},
+				{
+					"name": "Update Plan",
+					"request": {
+						"method": "PUT",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"name\": \"Basic Plan1222222\",\n  \"billingCycle\": \"monthly\",\n  \"price\": 9.99,\n  \"status\": \"active\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": "http://localhost:8787/plans/e832630a-b152-476d-8178-7f117e360e8f"
+					},
+					"response": []
+				},
+				{
+					"name": "Get Plan",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": "http://localhost:8787/plans/d08edeb6-0499-4671-a800-90a984d6f985"
+					},
+					"response": []
+				},
+				{
+					"name": "Delete Plan",
+					"request": {
+						"method": "DELETE",
+						"header": [],
+						"url": "http://localhost:8787/plans/d08edeb6-0499-4671-a800-90a984d6f985"
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Customers",
+			"item": [
+				{
+					"name": "Create Customers",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"name\": \"Yearly to monthly\",\n  \"email\": \"mohnishs121@example.com\",\n  \"currentSubscriptionPlanId\": \"290ad547-cc86-4054-80ca-eebac2dc9355\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": "http://localhost:8787/customers"
+					},
+					"response": []
+				},
+				{
+					"name": "Assign Plan",
+					"request": {
+						"method": "PUT",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"subscriptionPlanId\": \"a9664991-de05-449a-a0aa-12732622312d\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": "http://localhost:8787/customers/8b91851d-575c-4595-948b-30e72ba5ac37"
+					},
+					"response": []
+				},
+				{
+					"name": "Get Customer",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": "http://localhost:8787/customers/896890eb-024e-47d3-8c5f-117e35c75e35"
+					},
+					"response": []
+				},
+				{
+					"name": "List invoices",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": "http://localhost:8787/customer/896890eb-024e-47d3-8c5f-117e35c75e35/invoices"
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Payments",
+			"item": [
+				{
+					"name": "Process Payment",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"invoiceId\": \"142e4344-937d-4f1e-a824-c19bfb066e42\",\n    \"amount\": 702.5570776255707,\n    \"paymentMethod\": \"paypal\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": "http://localhost:8787/payments"
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Admin",
+			"item": [
+				{
+					"name": "Empty KV",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"url": "http://localhost:8787/admin/empty-kv"
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Test",
+			"item": [
+				{
+					"name": "[TEST] - Get Current Bill Date",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": "http://localhost:8787/test/getCurrentBillDate/911aa9de-0a6e-4fa5-a109-210e1f04c32b"
+					},
+					"response": []
+				},
+				{
+					"name": "[TEST] - Generate Invoice",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"invoiceGenerationDate\": \"4/10/2025\",\n    \"customerId\": \"896890eb-024e-47d3-8c5f-117e35c75e35\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": "http://localhost:8787/test/generateInvoice"
+					},
+					"response": []
+				}
+			]
+		}
+	]
+}
