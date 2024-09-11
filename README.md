@@ -26,6 +26,7 @@ This repository implements a simple billing app for a SaaS platform using Cloudf
 2. **Install dependencies:**
    ```bash
    npm install
+   npm install -g wrangler
    ```
 
 3. **Create and configure a KV Namespace:**
