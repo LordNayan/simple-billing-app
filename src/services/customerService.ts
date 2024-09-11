@@ -102,9 +102,6 @@ export class CustomerService {
 
     const subscriptionChangeDate = new Date();
 
-    // Remove in last commit
-    subscriptionChangeDate.setDate(subscriptionChangeDate.getDate() + 25);
-
     // Edge case where customers bill date will become earlier than the present bill date
     if (
       oldPlan?.billingCycle === "yearly" &&
@@ -144,7 +141,6 @@ export class CustomerService {
     return customerInvoices;
   }
 
-  // Remove in last commit
   async getCurrentBillDate(customerId: string): Promise<{
     currentBillDate: string;
     previousInvoiceGenerationDateCustomerArray: Array<string>;

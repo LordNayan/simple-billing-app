@@ -5,7 +5,6 @@ This repository implements a simple billing app for a SaaS platform using Cloudf
 ## Table of Contents
 - [Getting Started](#getting-started)
 - [APIs](#apis)
-- [Running Tests](#running-tests)
 - [Design Decisions](#design-decisions)
 
 ## Getting Started
@@ -171,6 +170,9 @@ The name of each subscription plan is also required to be unique. This prevents 
 
 #### Plan Updates
 When a subscription plan is updated, the changes will only affect future customers who subscribe to the plan. Existing customers on that plan will continue to observe the same billing cycle and price as when they first subscribed. This ensures stability and predictability for existing subscribers.
+
+#### Rounding off Prorated Amount
+Rounding off the prorated amount for simplicity 
 
 ### Cron Jobs for Invoice Generation
 

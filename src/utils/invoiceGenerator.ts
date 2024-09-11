@@ -93,7 +93,7 @@ export async function storeInvoiceGenerationDate(
     plan.billingCycle
   ).toLocaleDateString("en-US");
 
-  // Prepare a customer array to store all customers with same invoice generation date
+  // Prepare a customer array to store all customers with same active bill date
   const invoiceGenerationDateCustomerArray = await kvNamespace.get(
     `invoiceGenerationDate:${planEndDate}`
   );
@@ -165,18 +165,19 @@ async function calculateProratedCharges(customer: Customer): Promise<number> {
 
   for (let i = 0; i < customer.subscriptionChanges.length; i++) {
     const change = customer.subscriptionChanges[i];
-
-    const nextChangeDate =
-      i < customer.subscriptionChanges.length - 1
-        ? new Date(customer.subscriptionChanges[i + 1].changeDate)
-        : customer.subscriptionChanges[i - 1].billingCycle === "yearly" &&
-          customer.subscriptionChanges[i].billingCycle === "monthly"
-        ? calculateDueDate(
-            customer.subscriptionChanges[i].changeDate,
-            "monthly"
-          )
-        : billingCycleEndDate;
-
+    let nextChangeDate = billingCycleEndDate;
+    if (customer.subscriptionChanges.length != 1) {
+      nextChangeDate =
+        i < customer.subscriptionChanges.length - 1
+          ? new Date(customer.subscriptionChanges[i + 1].changeDate)
+          : customer.subscriptionChanges[i - 1].billingCycle === "yearly" &&
+            customer.subscriptionChanges[i].billingCycle === "monthly"
+          ? calculateDueDate(
+              customer.subscriptionChanges[i].changeDate,
+              "monthly"
+            )
+          : billingCycleEndDate;
+    }
     const daysUsed = Math.floor(
       (nextChangeDate.getTime() - new Date(change.changeDate).getTime()) /
         (1000 * 3600 * 24)
@@ -190,8 +191,8 @@ async function calculateProratedCharges(customer: Customer): Promise<number> {
 
     totalProratedAmount += (currentPlan!.price / daysInCycle) * daysUsed;
   }
-
-  return totalProratedAmount;
+  // Rounding off for simplicity
+  return Math.round(totalProratedAmount);
 }
 
 export function calculateDueDate(
