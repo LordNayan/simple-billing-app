@@ -150,6 +150,25 @@ export async function changeInvoiceGenerationDate(
   );
 }
 
+function calculateDaysUsed(startDate: Date, endDate: Date): number {
+  const startUTC = new Date(
+    Date.UTC(
+      startDate.getUTCFullYear(),
+      startDate.getUTCMonth(),
+      startDate.getUTCDate()
+    )
+  );
+  const endUTC = new Date(
+    Date.UTC(
+      endDate.getUTCFullYear(),
+      endDate.getUTCMonth(),
+      endDate.getUTCDate()
+    )
+  );
+
+  return (endUTC.getTime() - startUTC.getTime()) / (1000 * 3600 * 24);
+}
+
 async function calculateProratedCharges(customer: Customer): Promise<number> {
   let totalProratedAmount = 0;
   const currentCycleStart = new Date(
@@ -178,18 +197,20 @@ async function calculateProratedCharges(customer: Customer): Promise<number> {
             )
           : billingCycleEndDate;
     }
-    const daysUsed = Math.floor(
-      (nextChangeDate.getTime() - new Date(change.changeDate).getTime()) /
-        (1000 * 3600 * 24)
+    const daysUsed = calculateDaysUsed(
+      new Date(change.changeDate),
+      nextChangeDate
     );
 
     const currentPlan = await subscriptionPlanService.getPlan(
       change.subscriptionPlanId
     );
 
-    const daysInCycle = getDaysInCycle(currentPlan!.billingCycle);
+    if (currentPlan) {
+      const daysInCycle = getDaysInCycle(currentPlan.billingCycle);
 
-    totalProratedAmount += (currentPlan!.price / daysInCycle) * daysUsed;
+      totalProratedAmount += (currentPlan.price / daysInCycle) * daysUsed;
+    }
   }
   // Rounding off for simplicity
   return Math.round(totalProratedAmount);
